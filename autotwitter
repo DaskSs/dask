@@ -1,0 +1,146 @@
+// ==UserScript==
+// @name         Automação Twitter.com
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Automação de login com menu GUI para meusite.com
+// @author       Você
+// @match        *://twitter.com/*
+// @grant        GM_xmlhttpRequest
+// @connect      2fa.fb.rip
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Verifica se o menu GUI já existe para evitar duplicatas
+    if (document.getElementById('customUserInput')) return;
+
+    // Cria o menu GUI
+    const gui = document.createElement('div');
+    gui.id = 'customUserInput';
+    gui.style.position = 'fixed';
+    gui.style.top = '10px';
+    gui.style.left = '10px';
+    gui.style.padding = '10px';
+    gui.style.backgroundColor = '#f9f9f9';
+    gui.style.border = '1px solid #ccc';
+    gui.style.zIndex = '10000';
+    gui.innerHTML = `
+        <div style="margin-bottom: 10px;">Insira as informações (usuario:senha:api):</div>
+        <input type="text" id="userInfo" style="width: 300px; margin-bottom: 10px;">
+        <button id="startButton">Iniciar</button>
+    `;
+    document.body.appendChild(gui);
+
+    // Adiciona o evento de clique que inicia a ação
+    document.getElementById('startButton').addEventListener('click', initiateAction);
+
+    // Função que dispara o evento de input
+    function triggerInputChange(element, value) {
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+        nativeInputValueSetter.call(element, value);
+
+        var inputEvent = new Event('input', { bubbles: true });
+        var changeEvent = new Event('change', { bubbles: true });
+        element.dispatchEvent(inputEvent);
+        element.dispatchEvent(changeEvent);
+    }
+
+    function fetchAndEnterOTP(apiUrl, xpath) {
+        console.log('Iniciando requisição para a API:', apiUrl); // Confirmação da URL
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: apiUrl,
+            onload: function(response) {
+                console.log('Resposta recebida da API:', response.responseText); // Log da resposta
+
+                try {
+                    var jsonResponse = JSON.parse(response.responseText);
+                    if (jsonResponse.ok) {
+                        console.log("OTP:", jsonResponse.data.otp); // Confirmação do OTP
+                        const otp = jsonResponse.data.otp;
+
+                        waitForElement(xpath).then((inputBox) => {
+                            triggerInputChange(inputBox, otp);
+                            console.log("OTP inserido no campo:", otp); // Confirmação da inserção
+
+                            const otpSubmitButtonXPath = '//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div[2]/div/div/div/div/div/span/span';
+                            clickButton(otpSubmitButtonXPath);
+                        });
+                    } else {
+                        console.error('Resposta da API não está ok:', jsonResponse);
+                    }
+                } catch (e) {
+                    console.error("Erro ao parsear a resposta da API:", e);
+                }
+            },
+            onerror: function(response) {
+                console.error("Erro na requisição da API:", response.status);
+            }
+        });
+    }
+
+    // Função para simular o clique e preencher o usuário, senha e clicar para entrar
+    async function initiateAction() {
+        const userInfoString = document.getElementById('userInfo').value;
+        console.log('Informações inseridas:', userInfoString); // Verifique o que está sendo capturado
+
+        // Divide a string inserida pelo usuário em partes
+        const userInfoParts = userInfoString.split(':');
+        if (userInfoParts.length < 3) {
+            console.error('Formato de entrada incorreto. Certifique-se de usar o formato usuario:senha:apiUrl');
+            return;
+        }
+
+        const username = userInfoParts[0];
+        const password = userInfoParts[1];
+        // Junta novamente as partes restantes para formar a URL completa, caso ela contenha ":"
+        const apiUrl = userInfoParts.slice(2).join(':');
+
+        console.log('API URL:', apiUrl); // Isso agora deve imprimir a URL da API corretamente
+
+        // Clique para inserir o nome de usuário
+        await clickButton('//*[@id="react-root"]/div/div/div[2]/main/div/div/div[1]/div[1]/div/div[3]/div[5]/a/div/span/span');
+        await enterText('//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div/div/div/div[5]/label/div/div[2]/div/input', username);
+
+        // Clique para confirmar o nome de usuário e esperar pela caixa de senha
+        await clickButton('//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div/div/div/div[6]/div');
+        await enterText('//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div[1]/div/div/div[3]/div/label/div/div[2]/div[1]/input', password);
+
+        // Clique para fazer login
+        await clickButton('//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div[2]/div/div[1]/div/div/div/div');
+
+        const otpInputXPath = '//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div[1]/div/div[2]/label/div/div[2]/div/input';
+
+        await fetchAndEnterOTP(apiUrl, otpInputXPath);
+
+        const otpSubmitButtonXPath = '//*[@id="layers"]/div[2]/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div[2]/div/div/div/div/div/span/span';
+        await clickButton(otpSubmitButtonXPath);
+    }
+
+    // Função para simular a entrada de texto
+    async function enterText(xpath, text) {
+        let inputBox = await waitForElement(xpath);
+        if (inputBox) {
+            triggerInputChange(inputBox, text);
+        }
+    }
+
+    // Função para clicar em um botão
+    async function clickButton(xpath) {
+        let button = await waitForElement(xpath);
+        if (button) {
+            button.click();
+        }
+    }
+
+    // Função para esperar por um elemento estar disponível
+    async function waitForElement(xpath) {
+        let element = null;
+        while (element === null) {
+            element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return element;
+    }
+})();
